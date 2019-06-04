@@ -107,7 +107,7 @@ class FitMaker(Loggin.Message):
                               irfs=self.obs.irfs)
             Fit = UnbinnedAnalysis(Obs, self.obs.xmlfile,
                                    optimizer=self.config['fitting']['optimizer'])
-	
+
 	# Fix this, EBL absorbed models use LogParabola with b=0 instead of PowerLaw, we may want to allow fixed shape for that case
         if float(self.config['Spectrum']['FrozenSpectralIndex']>0) and self.config['target']['spectrum'] == "PowerLaw":
             parameters = dict()
@@ -251,17 +251,17 @@ class FitMaker(Loggin.Message):
                 try:
                     MinosErrors = Fit.minosError(self.obs.srcname, par)
                     if self.config['verbose'] == 'yes' :
-                       print(par+" :  %2.2f +/-  %2.2f [ %2.2f, + %2.2f ] %2.0e" %
+                       print(par+" :  %3.3f +/-  %3.3f [ %3.3f, + %3.3f ] %2.0e" %
                           (ParValue, ParError, MinosErrors[0], MinosErrors[1], Scale))
                        Result.update({'d'+par+'-': MinosErrors[0] * Scale})
                        Result.update({'d'+par+'+': MinosErrors[1] * Scale})
                 except:
                     if self.config['verbose'] == 'yes' :
-                        print(par+" :  %2.2f +/-  %2.2f  %2.0e" %
+                        print(par+" :  %3.3f +/-  %3.3f  %2.0e" %
                           (ParValue, ParError, Scale))
             else:
                 if self.config['verbose'] == 'yes' :
-                    print(par+" :  %2.2f   %2.0e" %
+                    print(par+" :  %3.3f   %2.0e" %
                       (ParValue, Scale))
 
         try: # get covariance matrix
