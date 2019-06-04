@@ -67,9 +67,9 @@ class Result(Loggin.Message):
             self.GetDecorrelationEnergy(par)
 
         self.info("Decorrelation energy : %4.2e MeV"% self.decE)
-        self.info("Diffential flux  at the Decorrelation energy : %2.2e +/-  %2.2e ph/cm2/s/MeV" \
+        self.info("Diffential flux  at the Decorrelation energy : %3.3e +/-  %3.3e ph/cm2/s/MeV" \
                 %(self.decFlux, self.decFluxerr))
-        self.info("SED value at the Decorrelation energy : %2.2e +/-  %2.2e erg/cm2/s" \
+        self.info("SED value at the Decorrelation energy : %3.3e +/-  %3.3e erg/cm2/s" \
                 %(self.decSED, self.decSEDerr))
 
         try:

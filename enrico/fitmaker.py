@@ -11,12 +11,9 @@ begun September 2011
 #log = logging.getLogger(__name__)
 import numpy as np
 import string
-try:
-    import astropy.io.fits as fits
-except ImportError:
-    import pyfits as fits
+import astropy.io.fits as fits
 from UnbinnedAnalysis import UnbinnedAnalysis, UnbinnedObs
-from BinnedAnalysis import BinnedAnalysis, BinnedObs, BinnedConfig
+from BinnedAnalysis import BinnedAnalysis, BinnedObs
 from enrico import utils
 from enrico import Loggin
 from enrico import environ
@@ -68,7 +65,7 @@ class FitMaker(Loggin.Message):
         if (self.config["analysis"]["ComputeDiffrsp"] == "yes" and self.config["analysis"]["likelihood"] == "unbinned"):
             self._log('gtdiffrsp', 'Compute Diffuse response')
             self.obs.DiffResps()#run gtdiffresp
-        self._log('gtbin', 'Create count maps (square fully embed in the ROI circle)')
+        self._log('gtbin', 'Create a count map')
         self.obs.Gtbin()
         self._log('gtltcube', 'Make live time cube')#run gtltcube
         self.obs.ExpCube()
@@ -83,8 +80,6 @@ class FitMaker(Loggin.Message):
             self.obs.GtBinnedMap()
             self._log('gtsrcmap', 'Make a source map')#run gtsrcmap
             self.obs.SrcMap()
-            self._log('gtmodel', 'Make a model map')#run gtsrcmap
-            self.obs.ModelMap(self.config["file"]["xml"])
 
         if self.config['analysis']['likelihood'] == 'unbinned': #unbinned analysis chain
             self._log('gtexpmap', 'Make an exposure map')
@@ -93,22 +88,16 @@ class FitMaker(Loggin.Message):
 
     def CreateLikeObject(self):
         """Create an UnbinnedAnalysis or a BinnedAnalysis and retrun it."""
+
         #create binnedAnalysis object
         if self.config['analysis']['likelihood'] == 'binned':
-            use_edisp  = self.config['analysis']['EnergyDispersion'] == 'yes'
-            edisp_bins = -2 if use_edisp==True else 0
             Obs = BinnedObs(srcMaps=self.obs.srcMap,
                             expCube=self.obs.Cubename,
                             binnedExpMap=self.obs.BinnedMapfile,
                             irfs=self.obs.irfs)
-            Cfg = BinnedConfig(use_edisp=use_edisp, 
-                               edisp_bins=edisp_bins)
-            Fit = BinnedAnalysis(Obs, self.obs.xmlfile, config=Cfg,
+            Fit = BinnedAnalysis(Obs, self.obs.xmlfile,
                                  optimizer=self.config['fitting']['optimizer'])
-            
-            Fit.setEnergyRange(self.obs.Emin,self.obs.Emax)
-            print("Is edisp enabled? {0}".format(str(Fit.logLike.use_edisp())))
-            
+
         #create a unbinnedAnalysis object
         if self.config['analysis']['likelihood'] == 'unbinned':
             Obs = UnbinnedObs(self.obs.mktimefile,
@@ -118,27 +107,27 @@ class FitMaker(Loggin.Message):
                               irfs=self.obs.irfs)
             Fit = UnbinnedAnalysis(Obs, self.obs.xmlfile,
                                    optimizer=self.config['fitting']['optimizer'])
-	
-	# Fix this, EBL absorbed models use LogParabola with b=0 instead of PowerLaw, 
-        # we may want to allow fixed shape for that case
-        if float(self.config['Spectrum']['FrozenSpectralIndex']!=0): 
+
+	# Fix this, EBL absorbed models use LogParabola with b=0 instead of PowerLaw, we may want to allow fixed shape for that case
+        if float(self.config['Spectrum']['FrozenSpectralIndex']>0) and self.config['target']['spectrum'] == "PowerLaw":
             parameters = dict()
             parameters['Index']  = -float(self.config['Spectrum']['FrozenSpectralIndex'])
-            parameters['alpha']  = +float(self.config['Spectrum']['FrozenSpectralIndex'])
-            parameters['Index1'] = -float(self.config['Spectrum']['FrozenSpectralIndex'])
-            parameters['beta']   = 0
-            parameters['Index2'] = 2.
-            parameters['Cutoff'] = 30000. # set the cutoff to be high
+            # parameters['alpha']  = +float(self.config['Spectrum']['FrozenSpectralIndex'])
+            # parameters['Index1'] = -float(self.config['Spectrum']['FrozenSpectralIndex'])
+            # parameters['beta']   = 0
+            # parameters['Index2'] = 2.
+            # parameters['Cutoff'] = 30000. # set the cutoff to be high
 
             for key in parameters.keys():
-                IdGamma = utils.getParamIndx(Fit, self.obs.srcname, key)
-                if (IdGamma == -1):
+                try:
+                    IdGamma = utils.getParamIndx(Fit, self.obs.srcname, key)
+                    Fit[IdGamma] = parameters[key] # set the parameter
+                    Fit[IdGamma].setFree(0)#the variable index is frozen to compute the UL
+                except:
                     continue
                 else:
-                    self.info("Freezing %s = %s" %(str(key),str(parameters[key])))
-                    Fit[IdGamma] = parameters[key] # set the parameter
-                    Fit[IdGamma].setFree(False)#the variable index is frozen to compute the UL
-                     
+                    self.info("Freezing %s at %s"\
+                            %(key,str(self.config['Spectrum']['FrozenSpectralIndex'])))
         return Fit #return the BinnedAnalysis or UnbinnedAnalysis object.
 
     def PerformFit(self, Fit, writeXml = True):
@@ -149,28 +138,21 @@ class FitMaker(Loggin.Message):
         self._log('gtlike', 'Run likelihood analysis')
         # TODO fix this part
 
-        # Change the fit tolerance to the one given by the user
+        # try:
+        # Fit.fit(0,covar=False, optimizer="DRMNGB") #first try to run gtlike to approche the minimum
+        # except:
+            # self.warning("First FIT did not converge with DRMNGB, trying DRMNFB")
+            # try:
+                # Fit.fit(0, optimizer="DRMNFB")
+            # except:
+                # self.warning("First FIT did not converge with DRMNFB either")
+
+        # Now the precise fit will be done
+        #change the fit tolerance to the one given by the user
         Fit.ftol = float(self.config['fitting']['ftol'])
-        
-        
-        # Fit with DRMNGB/DRMNFB (as recommended in gtlike fhelp) optimizer to 
-        # obtain initial parameters close to the minimum. Then switch optimizer.
-        try:
-            self.log_like = Fit.fit(verbosity=0, covar=False, optimizer='DRMNGB', optObject=None)
-        except Exception as exc:
-            self.warning('Exception while running DRMNGB, {0}'.format(str(exc)))
-            try:
-                self.log_like = Fit.fit(verbosity=0, covar=False, optimizer='DRMNFB', optObject=None)
-            except:
-                self.warning('Exception while running DRMNFB, {0}'.format(str(exc)))
-        
-        if self.config['verbose'] == 'yes' :    
-            print('Fit output with DRMNGB/DRMNFB: {0}'.format(self.log_like)) 
-        # 2nd precise fit with the user optimizer and ask gtlike to compute the covariance matrix
-        
-        self.log_like = Fit.fit(verbosity=0,covar=True, optimizer=self.config['fitting']['optimizer'])
-        if self.config['verbose'] == 'yes' :
-            print('Fit output with {1}: {0}'.format(self.log_like,self.config['fitting']['optimizer'])) 
+        #fit with the user optimizer and ask gtlike to compute the covariance matrix
+        self.log_like = Fit.fit(0,covar=True, optimizer=self.config['fitting']['optimizer'])
+        #fit with the user optimizer and ask gtlike to compute the covariance matrix
 
         # remove source with TS<min_source_TS (default=1)
         # to be sure that MINUIT will converge
@@ -185,27 +167,35 @@ class FitMaker(Loggin.Message):
         self.success("Fit with gtlike performed")
 
     def RemoveWeakSources(self,Fit,minTS=1.0):
-        """Remove weak sources and re-optimize to get a better minimum."""
+        """Remove the weak source after a fit and reoptimized
+         weak mens TS<1"""
         self._log('','Remove all the weak (TS<%.2f) sources' %minTS)
-        SrcTsDict = dict()
-
+        NoWeakSrcLeft = False
+        # while not(NoWeakSrcLeft):
+        # NoWeakSrcLeft = True
+        SrcToRemove = []
+        SrcTsTable = []
         for src in Fit.model.srcNames:
-            SrcTsDict[src] = Fit.Ts(src)
-            if (SrcTsDict[src]<minTS) and not(src == self.obs.srcname):
-                for comp in Fit.components:
-                    if comp.logLike.getSource(src).getType() == 'Point':
-                        if self.config['verbose'] == 'yes' :
-                            self.info("deleting source "+src+" with TS = "+\
-                                      str(SrcTsDict[src])+" from the model")
-                        comp.deleteSource(src)
-
-        for src in Fit.model.srcNames:
-            if (SrcTsDict[src]>=minTS):
-                if self.config['verbose'] == 'yes' :
-                    self.info('keeping source {0} with TS={1:.2e}'.format(src,SrcTsDict[src]))
-        
+            ts = Fit.Ts(src)
+            if  (ts<minTS) and not(src == self.obs.srcname):
+                SrcToRemove.append(src)
+                SrcTsTable.append(ts)
+                #and Fit.logLike.getSource(src).getType() == 'Point':
+        i = 0
+        for src in SrcToRemove:
+            ts = Fit.Ts(src)
+            for comp in Fit.components:
+                if comp.logLike.getSource(src).getType() == 'Point':
+                    if self.config['verbose'] == 'yes' :
+                        self.info("deleting source "+src+" with TS = "+str(SrcTsTable[i])+" from the model")
+                    # NoWeakSrcLeft = False
+                    comp.deleteSource(src)
+            i+=1
+        # if not(NoWeakSrcLeft):
+            # print NoWeakSrcLeft
+            # print Fit
         self._log('Re-optimize', '')
-        Fit.fit(verbosity=1, covar=True, optimizer=self.config['fitting']['optimizer'])
+        Fit.fit(0,covar=True, optimizer=self.config['fitting']['optimizer'])
         print
         return Fit
 
@@ -250,9 +240,7 @@ class FitMaker(Loggin.Message):
         Result['SrcName'] = self.obs.srcname
         Result['Flux'] = Fit.flux(self.obs.srcname,self.obs.Emin,self.obs.Emax)
         Result['dFlux'] = Fit.fluxError(self.obs.srcname,self.obs.Emin,self.obs.Emax)
-        Result['EFlux'] = Fit.energyFlux(self.obs.srcname,self.obs.Emin,self.obs.Emax)
-        Result['dEFlux'] = Fit.energyFluxError(self.obs.srcname,self.obs.Emin,self.obs.Emax)
-        
+
         for par in ParName : #Loop over the parameters and get value, error and scale
             ParValue = spectrum.getParam(par).value()
             ParError = spectrum.getParam(par).error()
@@ -399,28 +387,19 @@ class FitMaker(Loggin.Message):
         if self.config['UpperLimit']['Method'] == "Profile": #The method is Profile
             if Fit.Ts(self.obs.srcname)<2 :
                 self.warning("TS of the source is very low, better to use Integral method")
-            try:
-                import UpperLimits
-                ulobject = UpperLimits.UpperLimits(Fit)
-                ul, _ = ulobject[self.obs.srcname].compute(emin=self.obs.Emin,
-                                          emax=self.obs.Emax,delta=delta)
-                                          #delta=2.71 / 2)
-                self.info("Upper limit using Profile method: ")
-                #print ulobject[self.obs.srcname].results
-                self.warning("Be sure to have enough photons to validate the gaussian assumption")
-            except RuntimeError:
-                self.warning("ST UpperLimits returned RuntimeError, trying Integral")
-                self.config['UpperLimit']['Method'] = 'Integral'
+            import UpperLimits
+            ulobject = UpperLimits.UpperLimits(Fit)
+            ul, _ = ulobject[self.obs.srcname].compute(emin=self.obs.Emin,
+                                      emax=self.obs.Emax,delta=delta)
+                                      #delta=2.71 / 2)
+            self.info("Upper limit using Profile method: ")
+            print ulobject[self.obs.srcname].results
+            self.warning("Be sure to have enough photons to validate the gaussian assumption")
         if self.config['UpperLimit']['Method'] == "Integral": #The method is Integral
             import IntegralUpperLimit
-            try:
-                ul, _ = IntegralUpperLimit.calc_int(Fit, self.obs.srcname, cl=cl,
-                                                    verbosity=0,emin=self.obs.Emin,
-                                                    emax=self.obs.Emax)
-            except RuntimeError:
-                self.warning("ST UpperLimits returned RuntimeError, trying Poisson")
-                self.config['UpperLimit']['Method'] = 'Poisson'
-                
+            ul, _ = IntegralUpperLimit.calc_int(Fit, self.obs.srcname, cl=cl,
+                                                verbosity=0,emin=self.obs.Emin,
+                                                emax=self.obs.Emax)
             print "Upper limit using Integral method: ", ul
             self.warning("Be sure to have enough photons to validate the gaussian assumption")
 
@@ -448,7 +427,7 @@ class FitMaker(Loggin.Message):
         for i in xrange(Nbp):
             indx = -1.5 - i / (Nbp - 1.)
             utils.FreezeParams(Fit,self.srcname,PhIndex,indx)
-        r    #Use either the profile or the integral method
+            #Use either the profile or the integral method
             self.info("Methode used: "+self.config['UpperLimit']['Method'])
             if self.config['UpperLimit']['Method'] == "Profile":
                 ul = UpperLimits.UpperLimits(Fit)
