@@ -5,7 +5,7 @@ import logging
 import os
 import numpy as np
 from enrico.appertureLC import AppLC
-from enrico.config import get_config
+from enrico.config import get_config, get_email_params
 import enrico.environ as environ
 from enrico.submit import call
 from enrico.constants import AppLCPath
@@ -28,7 +28,9 @@ def run(infile):
     JobLog = prefix + "_Job.log"
     JobName = "AppertureLightCurve"
 
-    call(cmd, enricodir, fermidir, scriptname, JobLog, JobName)
+    send_email, email_adress = get_email_params(config)
+
+    call(cmd, enricodir, fermidir, scriptname, JobLog, JobName, send_email=send_email, email_adress=email_adress)
 
 
 try:
@@ -52,7 +54,3 @@ else:
   for inf in sys.argv[1:]:
     print "work on the config file ",inf
     run(inf)
-
-
-
-

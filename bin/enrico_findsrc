@@ -2,7 +2,7 @@
 import os
 import sys
 import numpy as np
-from enrico.config import get_config
+from enrico.config import get_config, get_email_params
 from enrico import environ
 from enrico.findsource import FindSrc
 from enrico.submit import call
@@ -22,7 +22,10 @@ def run(infile):
     scriptname = prefix + "_Script.sh"
     JobLog = prefix + "_Job.log"
     JobName = GenericName
-    call(cmd, environ.DIRS.get('ENRICO_DIR'), environ.DIRS.get('FERMI_DIR'), scriptname, JobLog, JobName)
+
+    send_email, email_adress = get_email_params(config)
+
+    call(cmd, environ.DIRS.get('ENRICO_DIR'), environ.DIRS.get('FERMI_DIR'), scriptname, JobLog, JobName, send_email=send_email, email_adress=email_adress)
 
 try:
     infile = sys.argv[1]
@@ -34,7 +37,7 @@ except:
 print len(sys.argv)
 if len(sys.argv)==2 :
 #read an config file alone. If not working, try to read an ascii file with different conf file
-  try : 
+  try :
     liste = np.genfromtxt(sys.argv[1],dtype="str",unpack=True)
     for inf in liste:
       print "work on the config file ",inf
@@ -46,4 +49,3 @@ else:
   for inf in sys.argv[1:]:
     print "work on the config file ",inf
     run(inf)
-

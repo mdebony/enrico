@@ -94,9 +94,9 @@ def query_config():
     if not(redshift=='') :
         config['target']['redshift'] = redshift
         config['target']['ebl_model'] = raw_input('ebl model to used\n'
-                                                   '0=Kneiske, 1=Primack05, 2=Kneiske_HighUV, 3=Stecker05, ' 
+                                                   '0=Kneiske, 1=Primack05, 2=Kneiske_HighUV, 3=Stecker05, '
                                                    '4=Franceschini, 5=Finke, 6=Gilmore : ')
-        
+
     message = ('Options are : PowerLaw, PowerLaw2, LogParabola, '
                'PLExpCutoff, Generic\nGeneric is design to allow the user to fit with non-supported models\n'
                 'EBL absorption can be added for PowerLaw2, LogParabola, PLExpCutoff\n'
@@ -196,3 +196,17 @@ def query_config():
 
 
     return get_config(config)
+
+def get_email_params(config):
+    #Change the minimum energy, legacy std low energy cut.
+    try:
+        send_email = config['send_email']
+    except NameError:
+        send_email = 'no'
+    #Change the maximum energy, legacy std high energy cut.
+    try:
+        email_adress = config['email_adress']
+    except NameError:
+        email_adress = ''
+
+    return send_email, email_adress

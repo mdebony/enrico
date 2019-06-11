@@ -12,7 +12,7 @@ from enrico import utils
 from enrico import plotting
 from enrico import environ
 from enrico import lightcurve
-from enrico.config import get_config
+from enrico.config import get_config, get_email_params
 from enrico.constants import LightcurvePath,FoldedLCPath
 from enrico.submit import call
 from enrico.RunGTlike import run, GenAnalysisObjects
@@ -135,11 +135,11 @@ class BayesianBlocks(lightcurve.LightCurve):
 
         #Load apperture flux point
         time_pt, dTime_pt, flux_pt, errflux_pt = self.readApperturePhotometryPoint()
-        
+
         plt.figure()
         plt.xlabel(r"Time (s)")
         plt.ylabel(r"${\rm Flux\ (photon\ cm^{-2}\ s^{-1})}$")
-        
+
         plot_bayesianblocks(np.array(edges[:-1]), np.array(edges[1:]),
                             flux/surfaceFermi, errflux/surfaceFermi, errflux/surfaceFermi,
                             np.zeros(flux.shape).astype(np.bool))
@@ -198,7 +198,8 @@ class BayesianBlocks(lightcurve.LightCurve):
                        self.config['analysis']['likelihood'] +
                        "_LC_" + self.config['file']['tag'])+"_"+str(i)+".log"
 
-                call(cmd,enricodir,fermidir,scriptname,JobLog,JobName)#Submit the job
+                send_email, email_adress = get_email_params(self.config)
+                call(cmd, enricodir, fermidir, scriptname, JobLog, JobName, send_email=send_email, email_adress=email_adress)#Submit the job
             else :
                 os.system(cmd)
 
@@ -466,7 +467,7 @@ class BayesianBlocks(lightcurve.LightCurve):
 
 #Functions in order to resample counts on apperture photometry to achieve a given error
 def resampleCount(time, dTime, exposure, counts, errorObj=0.1):
-    i=1        
+    i=1
     while i < len(time):
         if np.sqrt(float(counts[i-1]))/float(counts[i-1]) > errorObj:
             counts[i-1] += counts[i]
@@ -492,4 +493,3 @@ def resampleCount(time, dTime, exposure, counts, errorObj=0.1):
         dTime = np.delete(dTime, (i), axis=0)
         exposure = np.delete(exposure, (i), axis=0)
     return time, dTime, exposure, counts
-            

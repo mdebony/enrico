@@ -83,6 +83,14 @@ def GetSubOutput(qsub_log):
          'DESY' :    ['-o', qsub_log, '-j', 'y'],
          'CCIN2P3' : ['-o', qsub_log, '-e', qsub_log, '-j', 'yes']}
   return cmd[environ.FARM]
+
+def GetEMailOutput(send_email, email_adress):
+  cmd = {'LAPP' :    {'all' : ['-m aeb -M', email_adress], 'error' : ['-m a -M', email_adress]},
+         'MPIK' :    {'all' : ['-m aeb -M', email_adress], 'error' : ['-m a -M', email_adress]},
+         'LOCAL' :   {'all' : ['-m aeb -M', email_adress], 'error' : ['-m a -M', email_adress]},
+         'DESY' :    {'all' : ['-m aeb -M', email_adress], 'error' : ['-m a -M', email_adress]},
+         'CCIN2P3' : {'all' : ['-m aeb -M', email_adress], 'error' : ['-m a -M', email_adress]}}
+  return cmd[environ.FARM][send_email]
 ###
 
 
@@ -92,14 +100,16 @@ def call(cmd,
          scriptfile=None,
          qsub_log=None,
          jobname=None,
-	 submit=True,
-	 max_jobs=50,
+         submit=True,
+         max_jobs=50,
          #logfile=None,
          check_present=None,
          clobber=False,
          exec_dir=None,
          dry=False,
-         options=None):
+         options=None,
+         send_email='no',
+         email_adress=''):
     """Run a command line tool either directly
     or submit to the queue"""
     if check_present and not clobber:
@@ -194,6 +204,8 @@ def call(cmd,
             del outfd
 
         cmd += GetSubOutput(qsub_log)
+        if(send_email == 'all' or send_email == 'error'):
+            cmd += GetEMailOutput(send_email, email_adress)
         #if environ.FARM in ["DESY"]:
         #    cmd += ['/usr/bin/singularity','exec','/project/singularity/images/SL6.img','sh']
         cmd += [scriptfile]

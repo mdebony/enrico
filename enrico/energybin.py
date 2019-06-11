@@ -3,7 +3,7 @@ import numpy as np
 from enrico import environ
 from enrico.constants import EbinPath
 from enrico.submit import call
-from enrico.config import get_config
+from enrico.config import get_config, get_email_params
 from enrico import utils, Loggin
 
 def ChangeModel(comp, E1, E2, name, Pref, Gamma):
@@ -12,12 +12,12 @@ def ChangeModel(comp, E1, E2, name, Pref, Gamma):
     If the spectral model is PowerLaw, the prefactor is updated
     if not the model is change to PowerLaw.
     The index is frozen in all cases"""
-    
+
     # if approximated Gamma is outside of bounds set it to limit
     Gamma_min=-5
     Gamma_max=0.5
     Gamma = min(max(Gamma_min,Gamma),Gamma_max)
-    
+
     Eav = utils.GetE0(E1, E2)
 
     spectrum = comp.logLike.getSource(name).getSrcFuncs()['Spectrum']
@@ -39,7 +39,7 @@ def PrepareEbin(Fit, FitRunner,sedresult=None):
     and save it in a new ascii file
     iii) changing the spectral model and saving it in a new xml file.
     A list of the ascii files is returned"""
-        
+
     mes = Loggin.Message()
 
     NEbin = int(FitRunner.config['Ebin']['NumEnergyBins'])
@@ -136,7 +136,7 @@ def PrepareEbin(Fit, FitRunner,sedresult=None):
         config['energy']['emin'] = str(ener[ibin])
         config['energy']['emax'] = str(ener[ibin + 1])
         config['energy']['decorrelation_energy'] = "no"
-        # Change the spectral index to follow the Estimated Gamma 
+        # Change the spectral index to follow the Estimated Gamma
         # if approximated Gamma is outside of bounds set it to limit
         Gamma_min=-5
         Gamma_max=0.5
@@ -169,5 +169,7 @@ def RunEbin(folder,Nbin,Fit,FitRunner,sedresult=None):
                  JobName = (Newconfig['target']['name'] + "_" +
                            Newconfig['analysis']['likelihood'] +
                            "_Ebin_" + str(ind) + "_" + Newconfig['file']['tag'])
-                 call(cmd, enricodir, fermidir, scriptname, JobLog, JobName)# submition
+
+                 send_email, email_adress = get_email_params(Newconfig)
+                 call(cmd, enricodir, fermidir, scriptname, JobLog, JobName, send_email=send_email, email_adress=email_adress)# submition
              ind+=1
