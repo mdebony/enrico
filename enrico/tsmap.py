@@ -9,12 +9,14 @@ from enrico import environ
 from enrico.RunGTlike import GenAnalysisObjects
 from enrico.gtfunction import Observation
 from enrico import Loggin
+from enrico.config import get_config, get_email_params
+
 
 class TSMap(Loggin.Message):
-    # This class groups all the needed functions and 
+    # This class groups all the needed functions and
     # variables to compute a TS map
     # Variables : RAref, DECref and binsz are related to the cmap used
-    # to define the grip for the TS map and are respectively 
+    # to define the grip for the TS map and are respectively
     # the center of the map and the size of 1 bin in degrees
     # tsfolder is the location where the produced files file be stored
     # npix is the number of pixel of the TS map
@@ -38,7 +40,7 @@ class TSMap(Loggin.Message):
              cmap = fits.open(FitRunner.cmapfile)
         except :
              self.error('Count map not found.')
-        
+
         npix_im = min(cmap[0].header['NAXIS1'],cmap[0].header['NAXIS2'])
         self.npix = min(self.npix,npix_im)
         self.RAref = cmap[0].header['CRVAL1']
@@ -46,7 +48,7 @@ class TSMap(Loggin.Message):
         self.binsz = cmap[0].header['CDELT1']
 
     def _launch(self,ra,dec,i,j):
-        """ Launch a job (either pixel evaluation or row evaluation). 
+        """ Launch a job (either pixel evaluation or row evaluation).
         Can be the submittion of a job to a cluster """
         enricodir = environ.DIRS.get('ENRICO_DIR')
         fermidir = environ.DIRS.get('FERMI_DIR')
@@ -57,12 +59,13 @@ class TSMap(Loggin.Message):
             scriptname = prefix + "_Script.sh"
             JobLog = prefix + "_Job.log"
             JobName = (self.config['target']['name'] + "_TSMap_" + str(i) +"_"+ str(j))
-            call(cmd, enricodir, fermidir, scriptname, JobLog, JobName) #submition
-        else : 
-            os.system(cmd) #run directly 
+            send_email, email_adress = get_email_params(self.config)
+            call(cmd, enricodir, fermidir, scriptname, JobLog, JobName, send_email=send_email, email_adress=email_adress)
+        else :
+            os.system(cmd) #run directly
 
     def _PixelFile(self,i,j):
-        """ return the name of a file where the result of 1 pixel 
+        """ return the name of a file where the result of 1 pixel
         evaluation will be stored"""
         return self.tsfolder+'/Pixel_'+str(i)+'_'+str(j)
 
@@ -87,10 +90,10 @@ class TSMap(Loggin.Message):
             comp.addSource(src)# add a spurious source
 
         # # dump the *new* xml file
-        Fit.writeXml(self.tsfolder+"/model_"+str(ra)+"_"+str(dec)+".xml") 
+        Fit.writeXml(self.tsfolder+"/model_"+str(ra)+"_"+str(dec)+".xml")
 
         # # a new Fit object with the new xml file is needed.
-        # # just changing the position of the spurious source does not work 
+        # # just changing the position of the spurious source does not work
         _,Fit = GenAnalysisObjects(self.config,xmlfile=self.tsfolder+"/model_"+str(ra)+"_"+str(dec)+".xml") #get the Fit object
 
         # Fit.fit(0,optimizer=self.config['fitting']['optimizer'])
@@ -125,11 +128,11 @@ class TSMap(Loggin.Message):
             if column>0: #rerun only 1 pixel
                 dec = self.DECref + self.binsz*(column-self.npix/2.)
                 self.info('Run Pixel evaluation at '+str(ra)+' '+str(dec))
-                self._launch(ra,dec,row,column) 
+                self._launch(ra,dec,row,column)
             else :
                 self.info('Run Row evaluation at '+str(ra))
                 self._launch(ra,0,row,0)
-            return 
+            return
 
         # Normal operation : all row and piwel are computed
         for i in xrange(self.npix): #loop over the X axis
@@ -143,10 +146,10 @@ class TSMap(Loggin.Message):
 #                    if (row<0 and column<0) or (i==row and column<0) or (i==row and j==column):
                      dec = self.DECref + self.binsz*(j-self.npix/2.)
                      self.info('Run Pixel evaluation at '+str(ra)+' '+str(dec))
-                     self._launch(ra,dec,i,j) 
+                     self._launch(ra,dec,i,j)
 
     def PlotTSmap(self) :
-        """ Gather the results of the evaluation of 
+        """ Gather the results of the evaluation of
         each pixel and fill a fits file"""
         folder = self.config['out']
 
@@ -166,7 +169,7 @@ class TSMap(Loggin.Message):
         import string # read the results
         for i in xrange(npix):
             for j in xrange(npix):
-                try : 
+                try :
                     lines = open(self._PixelFile(i,j),"r").readlines()
                     Value = float(string.split(lines[0])[2])
                 except :
@@ -183,7 +186,7 @@ def GetSrc(Fit,ra,dec):
     """ return a Source object by cloning a pointlike source from the Fit object
     the source is rename, move to (ra,dec) and the spetral model is change to PowerLaw"""
     ind = 0
-    
+
     for comp in Fit.components:
         for name in  comp.logLike.srcNames() :
             src = comp.logLike.getSource(name).clone()

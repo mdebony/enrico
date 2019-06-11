@@ -3,7 +3,7 @@
 import os
 import sys
 import numpy as np
-from enrico.config import get_config
+from enrico.config import get_config, get_email_params
 from enrico import environ
 from enrico.submit import call
 from enrico.RunGTlike import run
@@ -32,7 +32,9 @@ def sed(config,infile):
     JobLog = prefix + "_Job.log"
     JobName = GenericName
 
-    call(cmd, enricodir, fermidir, scriptname, JobLog, JobName)
+    send_email, email_adress = get_email_params(config)
+
+    call(cmd, enricodir, fermidir, scriptname, JobLog, JobName, send_email=send_email, email_adress=email_adress)
 
 from enrico import Loggin
 mes = Loggin.Message()
@@ -44,7 +46,7 @@ except:
 
 if len(sys.argv)==2 :
 #read an config file alone. If not working, try to read an ascii file with different conf file
-  try : 
+  try :
     liste = np.genfromtxt(sys.argv[1],dtype="str",unpack=True)
     for inf in liste:
       mes.info("work on the config file "+inf)
@@ -58,4 +60,3 @@ else:
     mes.info("work on the config file "+inf)
     config = get_config(inf)
     sed(config,inf)
-

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from enrico import utils
 from enrico import plotting
 from enrico import environ
-from enrico.config import get_config
+from enrico.config import get_config, get_email_params
 from enrico.constants import LightcurvePath,FoldedLCPath
 from enrico.submit import call
 from enrico.RunGTlike import run, GenAnalysisObjects
@@ -162,7 +162,8 @@ class LightCurve(Loggin.Message):
                        self.config['analysis']['likelihood'] +
                        "_LC_" + self.config['file']['tag'])+"_"+str(i)+".log"
 
-                call(cmd,enricodir,fermidir,scriptname,JobLog,JobName)#Submit the job
+                send_email, email_adress = get_email_params(self.config)
+                call(cmd, enricodir, fermidir, scriptname, JobLog, JobName, send_email=send_email, email_adress=email_adress)
             else :
                 os.system(cmd)
 
