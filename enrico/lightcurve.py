@@ -154,7 +154,7 @@ class LightCurve(Loggin.Message):
 
         for i in xrange(self.Nbin):
             #gc.collect()
-            cmd = str("enrico_sed %s && enrico_plot_lc %s" %(self.configfile[i], self.parent_filename))
+            cmd = str("enrico_sed %s" %(self.configfile[i]))
             if self.submit == 'yes':
                 scriptname = self.LCfolder+"LC_Script_"+str(i)+".sh"
                 JobLog = self.LCfolder+"LC_Job_"+str(i)+".log"
